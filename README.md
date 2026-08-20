@@ -12,7 +12,18 @@ Hugging Face LeRobot ecosystem.
 
 This README is a setup guide: how to run the code, download the dataset slice, and
 execute the evaluation. The full report (results, methods, and discussion) is in
-[`short_report/mortez_report_dual_system.pdf`](short_report/mortez_report_dual_system.pdf).
+[`short_report/mortez_report_dual_system.pdf`](short_report/mortez_report_dual_system.pdf)
+and the extended report is in [`extended_report.md`](extended_report.md).
+
+## Sample result
+
+Below is one sample successful rollout, with System 2's choice drawn on every
+frame (task 9, episode 2, success in 268 steps):
+
+![sample successful rollout](outputs/videos/gifs/A_learned_task9_ep2_success.gif)
+
+More clips and per-step traces are in
+[`sample_videos.md`](sample_videos.md).
 
 ---
 
