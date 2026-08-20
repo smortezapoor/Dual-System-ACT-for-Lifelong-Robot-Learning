@@ -1,0 +1,25 @@
+# Results. These are large and can be regenerated, so they stay out of git.
+outputs/checkpoints/
+outputs/eval/
+# `outputs/videos/*` and not `outputs/videos/`: git will not descend into an
+# excluded DIRECTORY, so a `!` rule underneath one can never take effect. Naming
+# the contents keeps the directory itself visible and lets the negations below work.
+outputs/videos/*
+# ...but keep the sample rollout clips, which are a submission deliverable.
+# The GIFs and their traces are what sample_videos.md embeds, so ignoring them
+# ships that page with eight broken images. MP4s are deliberately NOT kept: they
+# cannot be embedded in Markdown and scripts/08_video.py regenerates them.
+!outputs/videos/gifs/
+outputs/perturbation/
+outputs/labels/
+outputs/subgoal_labels.parquet
+outputs/libero10_episodes.json
+
+# But DO keep the analysis and the figures: they are the evidence.
+!outputs/analysis/
+!outputs/analysis/**
+
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
