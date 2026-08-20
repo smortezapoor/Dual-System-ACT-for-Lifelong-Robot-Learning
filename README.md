@@ -23,14 +23,11 @@ frame (task 9, episode 2, success in 268 steps):
 
 ![sample successful rollout](outputs/videos/gifs/A_learned_task9_ep2_success.gif)
 
-More clips and per-step traces are in
-[`sample_videos.md`](sample_videos.md).
-
 ---
 
 ## Requirements
 
-A CUDA GPU. Tested on an Nvidia RTX cards (driver 550 on Ubunti 22.04 and 24.04).
+A CUDA GPU. Tested on Nvidia RTX cards (driver 550 on Ubuntu 22.04 and 24.04).
 
 Two ways to run this. **Docker is the easier one** and is what I used for every
 number in the report. Native works fine but you have to get the CUDA and EGL
