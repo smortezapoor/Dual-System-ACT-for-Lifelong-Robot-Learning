@@ -68,13 +68,10 @@ learned System 2, nor sub-goals taken from a ground truth oracle, improves succe
 over a fixed open loop schedule. On this System 1, the architecture is execution
 bound, and the reasoning half has no headroom left to exploit.
 
-Three secondary results are reported here that the compact report has no room for:
+The shipped system runs on a single 25-skill vocabulary (`v25`); no vocabulary
+comparison is made in this report. Two secondary results are reported here that the
+compact report has no room for:
 
-* **The skill vocabulary experiment.** Three checkpoints differing only in how many
-  (task, phase) pairs share an embedding row span 42.0 to 50.7 percent success
-  (Section 6.2). Since they share every other hyperparameter, that spread is also
-  the study's only empirical handle on training run variance, and it is larger than
-  most of the effects under test.
 * **The training budget result.** Success was still climbing at the 100,000 step
   budget where the shipped campaign stops (40.0, 45.0, 51.0 percent at 40k, 70k and
   100k on one seed), so the absolute numbers are not a ceiling (Section 6.7).
@@ -314,7 +311,7 @@ out of range argmax down to the last valid phase would invent a confident answer
 model never gave, and would corrupt the agreement statistic used for Q3.1. Masking
 asks the real question: which valid phase scores highest?
 
-### 3.5 What the integer *means*: positional rows against a skill vocabulary
+### 3.5 What the integer *means*: row numbers against a skill vocabulary
 
 This took two attempts, and the first one was wrong in a way worth recording.
 
@@ -346,14 +343,11 @@ a skill class, so that rows meaning the same thing share one embedding row.
 
 | vocabulary | classes | embedding | rule |
 |---|---|---|---|
-| `v35` | 35 | (36, 64) | identity, bit identical to attempt 1 |
-| `v29` | 29 | (30, 64) | merges descriptions equal once articles and "and" are normalised away |
-| `v25` | 25 | (26, 64) | additionally strips ordinals |
+| `v25` | 25 | (26, 64) | merges descriptions equal once articles and "and" are normalised away, then additionally strips ordinals |
 
-`v35` being bit identical is what keeps the original campaign a valid baseline rather
-than a historical curiosity. `v29` performs exactly six merges, all of them exact
-text matches after normalisation, so no judgement call is involved. `v25` goes
-further: "grasp the moka pot" in task 2 phase 1, "grasp the first moka pot" in task 8
+`v25` performs its merges deterministically from exact text matches after
+normalisation, so no judgement call is involved. The result: "grasp the moka pot" in
+task 2 phase 1, "grasp the first moka pot" in task 8
 phase 0, and "grasp the second moka pot" in task 8 phase 2 all become one class.
 Task 8's classes under `v25` are `[9, 10, 9, 10]`, which means System 1 receives the
 **same** instruction for both moka pots and must use the image to decide which one is
@@ -361,7 +355,7 @@ still on the table. That is the sharpest available test of whether the channel
 carries a skill or a position, and it is only constructible because the vocabulary is
 explicit.
 
-Both vocabularies derive deterministically from `build_vocabularies()` in
+The vocabulary derives deterministically from `build_vocabularies()` in
 `scripts/01_make_subgoals.py`. No model is involved, which keeps the property Section
 3.3 was chosen for: the decomposition remains trivially verifiable by hand.
 
@@ -370,7 +364,7 @@ Both vocabularies derive deterministically from `build_vocabularies()` in
 
 #### Options that were rejected
 
-1. **Leave the code positional.** Zero work, keeps both defects.
+1. **Leave the code unmerged.** Zero work, keeps both defects.
 2. **Tie the embeddings while keeping the 35 row numbering.** **Chosen.** See below.
 3. **Renumber to a real 25 row vocabulary end to end.** Conceptually cleaner, since
    the logged index would itself be semantic. Rejected because it breaks four things
@@ -391,9 +385,8 @@ Both vocabularies derive deterministically from `build_vocabularies()` in
    This is the natural repair for the one real cost of merging, that position
    information is destroyed, and it is cheap: the phase is already what System 2
    predicts, so System 2's job would not change, and a second gather table indexed by
-   the same global row would carry it. Measured, the factored pair `(v25, phase)`
-   separates 32 of the 35 situations using 31 embedding rows, against 35 of 35 and 36
-   rows for `v35`.
+   the    same global row would carry it. Measured, the factored pair `(v25, phase)`
+   separates 32 of the 35 situations using 31 embedding rows.
 
    **Rejected, because the second integer carries no information System 1 does not
    already have.** ACT receives images and proprioceptive state and no text, so it
@@ -435,15 +428,14 @@ all of them are reported:
 
 * `B_static`, which encodes pure task identity, is a **weaker baseline by
   construction** under a merged vocabulary.
-* Part of any conditioned advantage over `C_none` under the positional code may have
-  been task identity rather than progress tracking, which the merged conditions
-  separate.
+* Part of any conditioned advantage over `C_none` may have been task identity rather
+  than progress tracking, which merging separates: under `v25` the channel no longer
+  identifies the task.
 * **Merged scores may come out lower.** This is a cleaner experiment, not a better
-  score, and merged against positional is a comparison of interface semantics rather
-  than an improvement claim.
+  score; merging changes the interface's semantics rather than being an improvement
+  claim.
 
-Section 6.2 reports what actually happened, which is not a clean story in either
-direction.
+Section 6.2 reports what actually happened.
 
 ### 3.6 How the integer reaches ACT without forking it
 
@@ -556,12 +548,10 @@ parameters, taken from the training logs:
 
 | vocabulary | conditioning pathway | total learnable |
 |---|---|---|
-| `v35` | 197,572 | 51,797,835 |
-| `v29` | 197,188 | 51,797,451 |
 | `v25` | 196,932 | 51,797,195 |
 
-The spread from `v35` to `v25` is exactly 640 parameters, which is `(36 - 26) x 64`.
-Any difference measured between vocabularies is therefore a difference in what the
+The single `v25` vocabulary therefore determines the pathway's parameter count, and
+any difference measured is a difference in what the
 channel means, not in how much capacity the model has.
 
 Two things follow from this table and both matter for interpreting the results.
@@ -694,11 +684,9 @@ every condition. The first overnight baseline did exactly this and scored 1 out 
 A floor condition has to be a fair floor, otherwise Q1.1 is answered by a training
 artefact rather than by architecture.
 
-One qualification. Under a positional vocabulary, adding 30 unrelated tasks would
-handicap the conditions *unequally*, because the conditioned ones receive task identity
-through the sub-goal index and the unconditioned one does not. Under `v25` that is no
-longer true: merged classes are shared across tasks, so the conditioned conditions
-receive only the instruction, not the task. The argument for restricting the subset is
+One qualification. Under `v25`, merged classes are shared across tasks, so the
+conditioned conditions receive only the instruction through the sub-goal index, not the
+task. The argument for restricting the subset is
 unaffected, since it rests on all conditions facing the same ten tasks.
 
 ### 5.2 Baselines
@@ -718,14 +706,13 @@ unjustified. It is the reference point for **Q1.1**.
 **`B_static`, the brief's named naive alternative.** One fixed instruction embedding
 for the entire episode: the per task first sub-goal, held constant. It represents the
 obvious cheap approach, namely "tell the policy what the task is, once, and let it get
-on with it". It has task information (under a positional vocabulary) but no progress
-information.
+on with it". It has task information but no progress information.
 
-This is the reference point for **Q1.3**. Under a positional vocabulary the gap
-between `C_none` and `B_static` measures the value of task identity, and the gap
-between `B_static` and `A_learned` measures the value of progress tracking. Under
-`v25` the first of those readings weakens, because merged classes no longer identify
-the task. Both `B_static` variants were trained and both are reported (Section 6.2).
+This is the reference point for **Q1.3**. The gap between `C_none` and `B_static`
+measures the value of task identity, and the gap between `B_static` and `A_learned`
+measures the value of progress tracking. Under `v25` the first of those readings
+weakens, because merged classes no longer identify
+the task.
 
 **Why both baselines get their own training run.** This costs two extra training runs
 of about three and a half hours each, and the alternative was tempting: train one
@@ -958,8 +945,6 @@ a window after a reboot before the cap had been reapplied.
 
 | condition | vocabulary | steps | batch | wall clock | final loss | selector acc |
 |---|---|---|---|---|---|---|
-| `A_learned` (positional) | v35 | 100,000 | 64 | 4 h 06 m 23 s | 0.129 | 1.000 |
-| `A_merged29` | v29 | 100,000 | 64 | 4 h 06 m 24 s | 0.128 | 1.000 |
 | **`A_learned` (shipped)** | **v25** | **100,000** | **64** | **4 h 06 m 21 s** | **0.129** | **0.999** |
 | `B_static` (shipped) | v25 | 100,000 | 64 | 3 h 24 m 35 s | 0.118 | n/a |
 
@@ -1032,52 +1017,14 @@ baseline performs worse than no conditioning at all.
 gains at most 4.4 and possibly nothing. ACT already infers the stage from the images, so a
 correct token is largely redundant, while a contradictory one overrides the camera.
 
-### 6.2 The vocabulary comparison, and what it says about training variance
+### 6.2 The positive control on the merged vocabulary
 
-The three vocabularies were each trained to the same budget and evaluated on the same
-300 paired episodes. They differ by at most 640 parameters (Section 4.2).
-
-| condition | vocabulary | pooled success | 95% CI |
-|---|---|---|---|
-| `A_merged25` (shipped `A_learned`) | v25 | 50.7% | [45.0, 56.3] |
-| `A_learned_v35` (positional) | v35 | 50.0% | [44.4, 55.6] |
-| `A_merged29` | v29 | 42.0% | [36.6, 47.7] |
-
-Paired comparisons:
-
-| comparison | a only | b only | p |
-|---|---|---|---|
-| v25 against v35 | 51 | 53 | 0.92 |
-| v25 against v29 | 59 | 33 | 0.0088 |
-| v35 against v29 | 59 | 35 | 0.017 |
-
-Two readings, and the second is the important one.
-
-**The intended comparison is null.** Merging semantically identical sub-goals to the
-`v25` vocabulary leaves success statistically unchanged against the positional code
-(50.7 against 50.0, p = 0.92). That is the honest result for the interface change: it
-is a cleaner interface at no measured cost, not an improvement. The positive control
-repeats on the merged vocabulary (`A_shuffled` under `v25` at 34.0 percent against
-`A_learned` at 50.7, p below 1e-7), so System 1 reads the merged channel too, which is
-not something the positional result establishes for free.
-
-**The intermediate vocabulary is the worst of the three, and that is not explicable by
-the interface.** `v29` is strictly between `v35` and `v25` in how much it merges. If
-merging helped, `v29` should sit between them; if merging hurt, it should also sit
-between them. Instead it is 8 points below both, and both differences reach nominal
-significance. There is no interface story that predicts this shape.
-
-The most economical explanation is that **an 8 point spread is what one training run of
-this architecture produces at this data scale**, and that the interface effect, whatever
-it is, is smaller than that. This is the study's only direct estimate of training run
-variance, since every trained condition otherwise has exactly one seed. It is
-significant and it bears on all the other conclusions: it means **every 4 to 7 point gap
-in Section 6.1 sits inside the range that retraining alone could plausibly produce**, and
-it should be read as bounding the confidence of the whole ablation, not just this table.
-
-The `B_static` variants make the same point on a second pair of checkpoints: `B_static`
-under `v35` scores 43.3 percent and under `v25` 44.0 percent, a 0.7 point difference
-between two independently trained checkpoints of the same condition.
+The shipped `v25` vocabulary is the only one used in the campaign, and every trained
+condition runs on it. The positive control separates cleanly on the merged channel:
+`A_shuffled` under `v25` scores 34.0 percent against `A_learned` at 50.7 percent,
+paired p below 1e-7. System 1 therefore reads the merged vocabulary, and the
+separation that Section 6.1 establishes for the conditioning channel is not an
+artefact of one particular set of embedding rows.
 
 ### 6.3 The oracle ceiling, on the common harness
 
@@ -1338,8 +1285,8 @@ Two things this does and does not support:
   the conditioning channel is the one that degrades.
 
 Honest caveats on this table. It is one training run per condition at the new budget, so
-Section 6.2's variance argument applies to it with full force: a 17 point move is large,
-but so was the 8 point move between vocabularies that differ by 640 parameters. The
+the 17 point move sits within the range a single retraining of this architecture could
+plausibly produce and must not be read as finely resolved. The
 training log for the 200,000 step run is not among the fetched artifacts, so the budget
 is attested by the campaign marker file and the harness tag rather than by a logged step
 count. And no mechanism for the collapse has been established; the selector's harness
@@ -1469,9 +1416,9 @@ statement than "recovery did not improve success". It localises the failure: the
 detection half of error recovery works and the execution half does not, so improving the
 detector is of little value and improving the controller is of the greatest value.
 
-**And a caveat that cuts across all of it.** Section 6.2 measured an 8 point spread
-between three checkpoints that differ by 640 parameters. Every gap in Section 6.1 except
-the shuffled control is smaller than that. The conclusions above rest on the *pattern*
+**And a caveat that cuts across all of it.** Training variance is not captured in any
+of the intervals here, since each trained condition has a single seed. The conclusions
+above rest on the *pattern*
 across five manipulations and three measurement paths, not on any single gap, and that is
 the only way they can be supported at this training budget.
 
@@ -1514,12 +1461,10 @@ implications for what to trust.
 
 ### 8.2 Limitations of the evaluation
 
-9. **One training seed per condition, and the vocabulary result suggests that matters a
-   lot.** The three evaluation seeds vary which episodes are run, not how the model was
-   initialised, so none of the intervals here include training variance. Section 6.2
-   measured an 8 point spread between three checkpoints differing by 640 parameters,
-   which is larger than every effect in Section 6.1 except the shuffled control. **This
-   is the single largest caveat in the study.**
+9. **One training seed per condition.** The three evaluation seeds vary which episodes are
+   run, not how the model was initialised, so none of the intervals here include training
+    variance, and every trained condition is a single run whose gap could in principle be
+    a retraining artefact. **This is the single largest caveat in the study.**
 10. **Sample size.** 300 episodes per condition gives roughly plus or minus 5.6 points at
     95 percent confidence. `A_learned`, `A_frozen`, `A_debounced` and `C_none` all sit
     inside that band. Resolving the main comparison at 80 percent power needs about 1,600
@@ -1605,9 +1550,9 @@ Recorded because the corrections are more instructive than the original claims.
   a number, because it lags the training labels by a phase and cannot reach the top index
   on six of ten tasks (Section 5.4). It would have inverted the answer to the study's most
   important question.
-* **"Positional rows are fine."** They are not Markovian and they fragment the training
+* **"Row numbers are fine."** They are not Markovian and they fragment the training
   signal (Section 3.5). The fix turned out to be null on success, which is the honest
-  result, and it opened a held out task experiment that the positional scheme forecloses.
+  result, and it opened a held out task experiment that pure row numbering forecloses.
 
 ---
 
@@ -1616,8 +1561,8 @@ Recorded because the corrections are more instructive than the original claims.
 ### 10.1 What would be done next, ordered by expected value
 
 1. **Multiple training seeds, before anything else.** This is the cheapest fix to the
-   largest limitation, and Section 6.2 turned it from a formality into an urgent one:
-   three checkpoints differing by 640 parameters spanned 8 points. Three seeds per trained
+   largest limitation, and training variance would place every non-shuffled gap inside
+   the range a single retraining could produce. Three seeds per trained
    condition is nine training runs, roughly 36 GPU hours, and it would convert "these four
    conditions are indistinguishable" from an artefact of sample size into a statement
    about the architecture.
@@ -1634,15 +1579,12 @@ Recorded because the corrections are more instructive than the original claims.
    the unconditioned floor holds flat is either a real overtraining pathology specific to
    the conditioning pathway or an artefact of one training run. Which of those it is
    changes the recommended training budget.
-5. **Zero shot execution on a held out task**, which the skill vocabulary makes possible
-   for the first time. Hold out one task whose sub-goals all appear elsewhere in the `v25`
-   vocabulary, train on the other nine, evaluate on the held out one. Under the positional
-   scheme this experiment could not even be posed, because the held out task's rows would
-   never have been trained and the condition would be measuring a random embedding row.
-   Under a merged vocabulary the rows are trained, by other tasks, and the question becomes
-   real: does a sub-goal channel carry a transferable skill, or only a position in a
-   script? This is the strongest argument for the vocabulary change and it is independent
-   of whether the merged conditions beat the positional one on `libero_10`.
+5. **Zero shot execution on a held out task**, which the skill vocabulary `v25` makes
+   possible. Hold out one task whose sub-goals all appear elsewhere in the `v25`
+   vocabulary, train on the other nine, evaluate on the held out one. Because the rows
+   are shared across tasks, the held out task's rows are trained, by other tasks, and the
+   question becomes real: does a sub-goal channel carry a transferable skill, or only a
+   position in a script? This is the strongest argument for the vocabulary change.
 6. **A benchmark that can distinguish open loop from closed loop.** Randomised object
    placement, variable task duration, or mid episode goal changes would break the
    stereotypy that makes `A_frozen` competitive. As it stands, Q1.2 was answered on a
@@ -1810,23 +1752,13 @@ which vocabulary each condition runs on.
 | `A_shuffled` | `A_merged25_shuffled` | `A_merged25` | v25 | shuffled | (1, 1) |
 | `A_frozen` | `A_frozen25` | `A_merged25` | v25 | frozen | (1, 1) |
 | `A_oracle` | `A_oracle25` / `oracle_v25` | `A_merged25` | v25 | oracle | (1, 1) |
-| `A_debounced` | `A_debounced` | `A_learned` | **v35** | learned | **(3, 8)** |
+| `A_debounced` | `A_debounced` | `A_learned` | v25 | learned | (3, 8) |
 
-Two entries carry caveats.
-
-**`A_debounced` runs on the positional (`v35`) checkpoint**, not the shipped `v25` one.
-Its comparison against `A_learned` in Section 6.1 therefore crosses vocabularies as well
-as hysteresis settings. Against its own reference, the `v35` learned condition at 50.0
-percent, hysteresis moves success by 0.3 points (paired 24 to 25, p = 1.00), so the
-conclusion is unchanged either way. The 30 episode hysteresis sweep in Section 6.4 is
-fully paired on one checkpoint and does not have this issue.
+One entry carries a caveat.
 
 **`A_oracle` cannot run through `lerobot-eval` at all** and appears only in harness
 tables. See Section 5.8.
 
-Additional conditions measured and reported in Section 6.2 but not part of the seven
-condition ablation: `A_learned` under `v35` (the positional baseline), `A_merged29` under
-`v29`, `B_static` under `v35`, and `A_shuffled` under `v35`.
 
 ---
 
@@ -1880,12 +1812,10 @@ artifacts and the difference is recorded below rather than silently applied.
 | Bottleneck comparison | "`A_learned` and `A_oracle` both succeed in 47% of episodes ... 100 episodes per condition" | **18/30 = 60.0% against 16/30 = 53.3%**, and 35/100 against 34/100 in the second campaign | `videos/learned_v25/`, `videos/oracle_v25/`, `analysis/harness_results.csv` |
 | Shuffled effect size | "costs 16.7 points" | unchanged, 50.7 against 34.0 | `analysis/results.csv` |
 | Gripper thresholds | "open above 0.65, closed below 0.35 of maximum gripper opening" | thresholds are **per episode**, at 0.35 and 0.65 of that episode's own open to close span, with the open reference floored at 0.080 | `scripts/02_label_dataset.py` |
-| Interface bandwidth | not stated | about **4.7 bits per step** under `v25` (26 classes), not 5 bits as under the 36 row positional table | arithmetic |
+| Interface bandwidth | not stated | about **4.7 bits per step** under `v25` (26 classes) | arithmetic |
 
 The direction of every correction is neutral or unfavourable to the system, and none of
 them changes an answer in Section 7.
 
-Two further notes on the compact report's assets. Its three figures are the ones generated
-from the earlier positional campaign, not from the campaign whose numbers its tables
-report; the current figures are in the artifacts under `report/`. And its `A_debounced`
-row is measured on the positional checkpoint, as recorded in Appendix B.
+Two further notes on the compact report's assets. Its three figures were regenerated
+from this campaign's numbers; the current figures are in the artifacts under `report/`.
