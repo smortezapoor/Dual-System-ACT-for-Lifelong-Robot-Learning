@@ -1,0 +1,22 @@
+[project]
+# UNDERSCORES, not hyphens, and this is not a style choice.
+#
+# LeRobot finds out-of-tree policies by scanning installed packages for names
+# starting with "lerobot_policy_", then calling importlib.import_module() on the
+# name it found. So the package name is used directly as a module name. Written
+# with hyphens, the import raises ModuleNotFoundError, and LeRobot catches that
+# quietly, so the plugin just never loads. The only symptom is
+# "--policy.type=subgoal_act" being rejected as unknown, which points nowhere
+# near the real cause. I hit this once and lost an evening to it.
+name = "lerobot_policy_subgoal_act"
+version = "0.1.0"
+description = "Sub-goal conditioned ACT: a dual-system policy for LIBERO-Long"
+requires-python = ">=3.10"
+dependencies = ["lerobot>=0.6.0"]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
