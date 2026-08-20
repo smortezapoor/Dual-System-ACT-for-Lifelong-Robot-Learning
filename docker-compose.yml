@@ -1,0 +1,69 @@
+# Convenience wrappers around the container. Each service is one pipeline step.
+#
+#   docker compose run --rm check                 # verify the installation
+#   docker compose run --rm prepare               # sub-goals + labels
+#   docker compose run --rm train A_learned
+#   docker compose run --rm sweep                 # the whole ablation
+#   docker compose run --rm analyze
+
+x-common: &common
+  build: .
+  image: dual-system-vla:latest
+  environment:
+    MUJOCO_GL: egl
+    # Cache the dataset outside the container so it survives a rebuild.
+    HF_HOME: /data/huggingface
+  volumes:
+    - ./outputs:/app/outputs
+    - ${HF_CACHE:-~/.cache/huggingface}:/data/huggingface
+    # Mount the source, so code edits take effect without rebuilding.
+    - .:/app
+  working_dir: /app
+  shm_size: "8gb"
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu, utility, compute, graphics]
+
+services:
+  check:
+    <<: *common
+    entrypoint: ["python", "scripts/00_check_setup.py"]
+
+  prepare:
+    <<: *common
+    entrypoint: ["bash", "-lc",
+                 "python scripts/01_make_subgoals.py && python scripts/02_label_dataset.py"]
+
+  train:
+    <<: *common
+    entrypoint: ["python", "scripts/03_train.py"]
+
+  eval:
+    <<: *common
+    entrypoint: ["python", "scripts/04_eval.py"]
+
+  sweep:
+    <<: *common
+    entrypoint: ["python", "scripts/05_sweep.py"]
+
+  perturb:
+    <<: *common
+    entrypoint: ["python", "scripts/06_perturb.py"]
+
+  analyze:
+    <<: *common
+    entrypoint: ["python", "scripts/07_analyze.py"]
+
+  video:
+    <<: *common
+    entrypoint: ["python", "scripts/08_video.py"]
+
+  shell:
+    <<: *common
+    entrypoint: ["bash"]
+    stdin_open: true
+    tty: true
