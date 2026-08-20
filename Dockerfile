@@ -19,9 +19,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # libglvnd and libegl provide the EGL loader that MuJoCo needs to render without
 # a screen. libgl1 and libosmesa6 cover the software fallback paths.
+# build-essential, cmake and pkg-config are needed to compile LeRobot's
+# source-only dependencies (egl_probe / hf-egl-probe) at pip-install time.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3.12 python3-pip python3.12-venv \
         git curl ca-certificates \
+        build-essential cmake pkg-config \
         libglvnd0 libgl1 libglx0 libegl1 libgles2 libosmesa6 \
         libglib2.0-0 libsm6 libxext6 libxrender1 \
     && rm -rf /var/lib/apt/lists/*
@@ -68,6 +71,22 @@ os.makedirs("/opt/libero_config", exist_ok=True)
 with open("/opt/libero_config/config.yaml", "w") as f:
     yaml.safe_dump(config, f)
 PY
+
+# NVIDIA EGL vendor ICD. The Container Toolkit injects libEGL_nvidia.so.0 when
+# the "graphics" capability is requested, but on some toolkit versions it does
+# NOT inject /usr/share/glvnd/egl_vendor.d/10_nvidia.json. Without it the GLVND
+# loader falls back to Mesa llvmpipe (a CPU rasteriser): rendering still
+# "works", 10-30x slower, and nvidia-smi keeps reporting a healthy GPU. The
+# 10_ prefix sorts ahead of 50_mesa.json so NVIDIA wins when present.
+RUN mkdir -p /usr/share/glvnd/egl_vendor.d \
+ && printf '%s\n' \
+      '{' \
+      '    "file_format_version" : "1.0.0",' \
+      '    "ICD" : {' \
+      '        "library_path" : "libEGL_nvidia.so.0"' \
+      '    }' \
+      '}' > /usr/share/glvnd/egl_vendor.d/10_nvidia.json \
+ && chmod 0644 /usr/share/glvnd/egl_vendor.d/10_nvidia.json
 
 WORKDIR /app
 COPY . /app
