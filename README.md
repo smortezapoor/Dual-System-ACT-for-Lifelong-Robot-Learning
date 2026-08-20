@@ -13,6 +13,8 @@ Hugging Face LeRobot ecosystem.
 This README is a setup guide: how to run the code, download the dataset slice, and
 execute the evaluation. The full report (results, methods, and discussion) is in
 [`short_report/mortez_report_dual_system.pdf`](short_report/mortez_report_dual_system.pdf).
+Sample result videos are in
+[`sample_videos.md`](sample_videos.md).
 
 ## Sample result
 
